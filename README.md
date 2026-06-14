@@ -12,3 +12,4 @@ Este proyecto se distribuye bajo la Licencia MIT. Eres libre de utilizar, modifi
 1. Clona el repositorio: `git clone https://github.com/doctor-plasmadrid/logic-lab`
 2. Instala dependencias: `npm install`
 3. Inicia el servidor de desarrollo: `npm run dev`
+```
