@@ -1,16 +1,14 @@
-# React + Vite
+# Logic Lab
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Un programa para unificar y resolver ejercicios de lógica proposicional y de lenguajes de primer orden.
 
-Currently, two official plugins are available:
+## Licencia
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Este proyecto se distribuye bajo la Licencia MIT. Eres libre de utilizar, modificar y distribuir esta infraestructura para tus propios proyectos, siempre que se mantenga el crédito al autor original: Dr. Plasmadrid.
 
-## React Compiler
+## Instalación
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```
+1. Clona el repositorio: `git clone https://github.com/doctor-plasmadrid/logic-lab`
+2. Instala dependencias: `npm install`
+3. Inicia el servidor de desarrollo: `npm run dev`
