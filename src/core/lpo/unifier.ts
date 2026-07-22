@@ -30,8 +30,14 @@ export function resolveLPO(c1Str: string, c2Str: string, theta1Str: string, thet
   const sub1 = applySubstitution(c1Str, theta1);
   const sub2 = applySubstitution(c2Str, theta2);
 
-  const lits1 = sub1.split('∨').map(s => s.trim()).filter(Boolean);
-  const lits2 = sub2.split('∨').map(s => s.trim()).filter(Boolean);
+  let clean1 = sub1.trim();
+  if (clean1.startsWith('(') && clean1.endsWith(')')) clean1 = clean1.slice(1, -1);
+  
+  let clean2 = sub2.trim();
+  if (clean2.startsWith('(') && clean2.endsWith(')')) clean2 = clean2.slice(1, -1);
+
+  const lits1 = clean1.split('∨').map(s => s.trim()).filter(Boolean);
+  const lits2 = clean2.split('∨').map(s => s.trim()).filter(Boolean);
 
   for (let i = 0; i < lits1.length; i++) {
     const L1 = lits1[i];
