@@ -496,9 +496,28 @@ export default function MainMenu() {
 
   const handleLpoLinearSelect = (target: string) => {
     if (!lpoLinearHead) {
-      setLpoLinearHead(target); setLpoFeedback("Cabeza establecida. Selecciona la cláusula contra la que quieres resolver.");
+      setLpoLinearHead(target); 
+      setLpoFeedback("Cabeza establecida. Selecciona la cláusula contra la que quieres resolver.");
     } else if (!lpoLinearTarget) {
-      setLpoLinearTarget(target); setLpoFeedback("Cláusula seleccionada. Introduce la sustitución (Unificador MGU) y resuelve.");
+      const directResolution = resolveLPO(lpoLinearHead, target, "", "");
+      
+      if (directResolution) {
+        setLpoLinearHistory([...lpoLinearHistory, { 
+          left: lpoLinearHead, right: target, resolvent: directResolution.resolvent, 
+          theta1: 'ε', theta2: 'ε' 
+        }]);
+        setLpoLinearHead(directResolution.resolvent);
+        setLpoLinearTarget(null);
+        
+        if (directResolution.resolvent === '□') {
+          setLpoFeedback("✓ ¡Cláusula Vacía alcanzada directamente! Conjunto Refutado.");
+        } else {
+          setLpoFeedback(`✓ Resolución directa (sin variables) por ${directResolution.resolvedLiteral}.`);
+        }
+      } else {
+        setLpoLinearTarget(target); 
+        setLpoFeedback("Cláusula seleccionada. Introduce la sustitución (Unificador MGU) y resuelve.");
+      }
     }
   };
 
@@ -895,7 +914,7 @@ export default function MainMenu() {
                       <div className="flex flex-col items-center flex-1">
                         <span className="text-white bg-slate-800 px-4 py-3 rounded border border-slate-600 mb-3 text-center w-full">{lpoLinearHead}</span>
                         <label className="text-xs text-slate-400 mb-1 font-sans">Sustitución θ₁ (Ej: x|a)</label>
-                        <input type="text" value={lpoSubstitution1} onChange={(e) => setLpoSubstitution1(e.target.value)} className="w-full p-2 bg-black/60 border border-slate-600 focus:border-blue-400 rounded text-white font-mono text-center outline-none" placeholder="Vacío = ε" />
+                        <input type="text" value={lpoSubstitution1} onChange={(e) => setLpoSubstitution1(e.target.value)} className="w-full p-2 bg-black/60 border border-slate-600 focus:border-blue-400 rounded text-white font-mono text-center outline-none" placeholder="Ej: x/a, y|f(b)" />
                       </div>
 
                       <span className="text-blue-400 font-bold text-2xl hidden md:block">⋈</span>
@@ -903,7 +922,7 @@ export default function MainMenu() {
                       <div className="flex flex-col items-center flex-1">
                         <span className="text-white bg-slate-800 px-4 py-3 rounded border border-slate-600 mb-3 text-center w-full">{lpoLinearTarget}</span>
                         <label className="text-xs text-slate-400 mb-1 font-sans">Sustitución θ₂ (Ej: x|f(a))</label>
-                        <input type="text" value={lpoSubstitution2} onChange={(e) => setLpoSubstitution2(e.target.value)} className="w-full p-2 bg-black/60 border border-slate-600 focus:border-blue-400 rounded text-white font-mono text-center outline-none" placeholder="Vacío = ε" />
+                        <input type="text" value={lpoSubstitution2} onChange={(e) => setLpoSubstitution2(e.target.value)} className="w-full p-2 bg-black/60 border border-slate-600 focus:border-blue-400 rounded text-white font-mono text-center outline-none" placeholder="Ej: z->c, w=a" />
                       </div>
                     </div>
 
