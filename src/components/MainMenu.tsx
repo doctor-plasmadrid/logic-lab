@@ -7,6 +7,7 @@ import { solveDPLL, DPLLStep, Clause, formatSingleClause, resolveClauses } from 
 import { areLogicallyEquivalent } from '../core/dpll/evaluator';
 import { isStrictSkolemForm, isQuantifierFree, toSkolem, toCNF } from '../core/lpo/skolem';
 import { resolveLPO } from '../core/lpo/unifier';
+import { useLanguage } from '../LanguageContext';
 
 type SymbolType = 'FUNCTION' | 'PREDICATE' | 'CONSTANT' | 'VARIABLE';
 type SymbolDictionary = Record<string, SymbolType>;
@@ -30,6 +31,7 @@ const getDefaultType = (char: string): SymbolType | null => {
 };
 
 export default function MainMenu() {
+  const { language, setLanguage, t } = useLanguage();
   const [logicMode, setLogicMode] = useState<'PROPOSICIONAL' | 'LPO'>('PROPOSICIONAL');
   const [formulas, setFormulas] = useState<string[]>(['']);
   const [asts, setAsts] = useState<(ASTNode | null)[]>([]);
@@ -198,36 +200,36 @@ export default function MainMenu() {
   const showLpoSkolemSolution = () => {
     const activeAst = asts[lpoActiveFormula];
     if (!activeAst) {
-      setLpoFeedback("✗ ERROR FATAL: No se puede generar solución porque la premisa original tiene un error de sintaxis.");
+      setLpoFeedback(t('skolemFatalError'));
       return;
     }
-    
+
     try {
       const skolemAst = toSkolem(activeAst);
       const solutionText = astToString(skolemAst);
-      
+
       setLpoInputs([solutionText]);
-      setLpoFeedback("💡 Solución Skolem autocompletada. Pulsa Validar.");
+      setLpoFeedback(t('skolemSolutionAutocompleted'));
     } catch (e) {
       setLpoInputs([""]);
-      setLpoFeedback("✗ Error interno al generar la solución matemática.");
+      setLpoFeedback(t('skolemInternalError'));
     }
   };
 
   const showLpoClausalSolution = () => {
     try {
       let coreAst = new LogicParser(tokenize(lpoSkolemFormulas[lpoActiveFormula]), logicMode, dictionary).parse();
-      
+
       while (coreAst && coreAst.type === 'FORALL') {
         coreAst = (coreAst as any).operand || (coreAst as any).body || (coreAst as any).expression;
       }
-      
+
       const fncAst = toCNF(coreAst);
       const targetClauses = getClauses(fncAst);
       setLpoInputs(targetClauses.map(c => astToString(c)));
-      setLpoFeedback("💡 Solución clausulada autocompletada. Pulsa Validar.");
+      setLpoFeedback(t('clausalSolutionAutocompleted'));
     } catch (e) {
-      setLpoInputs([`[Error al generar cláusulas]`]);
+      setLpoInputs([`[Error generating clauses]`]);
     }
   };
 
@@ -316,7 +318,7 @@ export default function MainMenu() {
   const handleLinearSelect = (targetClause: Clause) => {
     if (linearStatus !== 'PLAYING') return;
     if (!linearHead) {
-      setLinearHead(targetClause); setLinearFeedback("Cabeza establecida. Selecciona otra cláusula del Input para resolverla."); return;
+      setLinearHead(targetClause); setLinearFeedback(t('headSet')); return;
     }
     const resolution = resolveClauses(linearHead, targetClause);
     if (resolution) {
@@ -324,9 +326,9 @@ export default function MainMenu() {
       setLinearHistory([...linearHistory, { left: linearHead, right: targetClause, resolvent, lit: resolvedLiteral }]);
       setLinearHead(resolvent);
       if (resolvent.length === 0) {
-        setLinearStatus('SUCCESS'); setLinearFeedback("¡Cláusula Vacía (□) alcanzada! Conjunto Refutado con éxito.");
-      } else { setLinearFeedback(`¡Resuelto por el literal ${resolvedLiteral}! Sigue resolviendo.`); }
-    } else { setLinearFeedback("✗ Esas cláusulas no se pueden resolver entre sí."); }
+        setLinearStatus('SUCCESS'); setLinearFeedback(t('emptyClauseReached'));
+      } else { setLinearFeedback(t('continueResolving', { lit: resolvedLiteral })); }
+    } else { setLinearFeedback(t('cannotResolve')); }
   };
 
   const handleGuessRule = (rule: DPLLStep['type']) => {
@@ -394,60 +396,60 @@ export default function MainMenu() {
 
   const checkLpoSkolem = () => {
     const userInput = lpoInputs[0];
-    if (!userInput.trim()) { setLpoFeedback("✗ No puede estar vacío."); return; }
-    
+    if (!userInput.trim()) { setLpoFeedback(t('skolemEmpty')); return; }
+
     const activeAst = asts[lpoActiveFormula];
     if (!activeAst) {
-      setLpoFeedback("✗ ERROR FATAL.");
+      setLpoFeedback(t('skolemFatal'));
       return;
     }
 
     try {
       const userAst = new LogicParser(tokenize(userInput), logicMode, dictionary).parse();
-      
+
       if (!isStrictSkolemForm(userAst)) {
-        setLpoFeedback("✗ Forma inválida. Todos los universales (∀) deben ir al principio y no puede haber existenciales (∃)."); 
+        setLpoFeedback(t('skolemInvalid'));
         return;
       }
 
-      const expectedAst = toSkolem(activeAst); 
+      const expectedAst = toSkolem(activeAst);
       const userStr = astToString(userAst);
       const expectedStr = astToString(expectedAst);
 
       if (userStr !== expectedStr) {
-        setLpoFeedback(`✗ Incorrecto. La transformación esperada es: ${expectedStr}`);
+        setLpoFeedback(t('skolemIncorrect', { expected: expectedStr }));
         return;
       }
-      
+
       const newSkolemList = [...lpoSkolemFormulas, userStr];
       setLpoSkolemFormulas(newSkolemList);
-      
+
       const validFormulasCount = formulas.filter(f => f.trim() !== '').length;
       if (lpoActiveFormula < validFormulasCount - 1) {
-        setLpoActiveFormula(prev => prev + 1); setLpoInputs(['']); setLpoFeedback("✓ Skolemización correcta. Pasando a la siguiente...");
+        setLpoActiveFormula(prev => prev + 1); setLpoInputs(['']); setLpoFeedback(t('skolemCorrect'));
       } else {
-        setLpoPhase('CLAUSAL'); setLpoActiveFormula(0); setLpoInputs(['']); setLpoFeedback("✓ ¡Todas las fórmulas están en Forma de Skolem! Ahora, pásalas a Forma Clausulada.");
+        setLpoPhase('CLAUSAL'); setLpoActiveFormula(0); setLpoInputs(['']); setLpoFeedback(t('skolemAllComplete'));
       }
-    } catch (e) { setLpoFeedback("✗ Error de sintaxis en tu fórmula de Skolem."); }
+    } catch (e) { setLpoFeedback(t('skolemSyntaxError')); }
   };
 
   const checkLpoClausal = () => {
     try {
       let coreAst = new LogicParser(tokenize(lpoSkolemFormulas[lpoActiveFormula]), logicMode, dictionary).parse();
-      
+
       while (coreAst && coreAst.type === 'FORALL') {
          coreAst = (coreAst as any).operand || (coreAst as any).body || (coreAst as any).expression;
       }
-      
+
       const expectedFncAst = toCNF(coreAst);
       const expectedClausesStrings = getClauses(expectedFncAst).map(c => astToString(c));
       const userClausesStrings: string[] = [];
 
       for (const input of lpoInputs) {
-        if (!input.trim()) { setLpoFeedback("✗ Rellena todas las cajas."); return; }
-        
+        if (!input.trim()) { setLpoFeedback(t('fillAllBoxes')); return; }
+
         const userAst = new LogicParser(tokenize(input), logicMode, dictionary).parse();
-        if (!isQuantifierFree(userAst)) { setLpoFeedback("✗ Forma Clausulada inválida: No deben quedar cuantificadores (∀ o ∃)."); return; }
+        if (!isQuantifierFree(userAst)) { setLpoFeedback(t('clausalInvalid')); return; }
 
         const checkClause = (node: any): boolean => {
           if (node.type === 'PROPOSITION' || node.type === 'PREDICATE') return true;
@@ -460,14 +462,14 @@ export default function MainMenu() {
         };
 
         if (!checkClause(userAst)) {
-           setLpoFeedback("✗ Las fórmulas deben ser disyunciones puras (literales unidos por ∨)."); 
+           setLpoFeedback(t('clausalInvalid2'));
            return;
         }
         userClausesStrings.push(astToString(userAst));
       }
-      
+
       if (userClausesStrings.length !== expectedClausesStrings.length) {
-         setLpoFeedback(`✗ Número de cláusulas incorrecto. Se esperaban ${expectedClausesStrings.length}.`);
+         setLpoFeedback(t('wrongClauseCount', { count: expectedClausesStrings.length.toString() }));
          return;
       }
 
@@ -480,7 +482,7 @@ export default function MainMenu() {
       const userSets = userClausesStrings.map(parseToLiteralSet).sort();
 
       if (expectedSets.join('|') !== userSets.join('|')) {
-          setLpoFeedback("✗ Incorrecto. Las cláusulas no equivalen a la matriz de Skolem.");
+          setLpoFeedback(t('clausesIncorrect'));
           return;
       }
 
@@ -488,35 +490,35 @@ export default function MainMenu() {
       setLpoClausalFormulas(newClausalList);
 
       if (lpoActiveFormula < lpoSkolemFormulas.length - 1) {
-        setLpoActiveFormula(prev => prev + 1); setLpoInputs(['']); setLpoFeedback("✓ Cláusulas correctas. Pasando a la siguiente...");
+        setLpoActiveFormula(prev => prev + 1); setLpoInputs(['']); setLpoFeedback(t('clausesCorrect'));
       } else { setLpoPhase('LINEAR'); setLpoFeedback(null); }
 
-    } catch (e) { setLpoFeedback("✗ Error de sintaxis en tus cláusulas."); return; }
+    } catch (e) { setLpoFeedback(t('clausalSyntaxError')); return; }
   };
 
   const handleLpoLinearSelect = (target: string) => {
     if (!lpoLinearHead) {
-      setLpoLinearHead(target); 
-      setLpoFeedback("Cabeza establecida. Selecciona la cláusula contra la que quieres resolver.");
+      setLpoLinearHead(target);
+      setLpoFeedback(t('headSetLpo'));
     } else if (!lpoLinearTarget) {
       const directResolution = resolveLPO(lpoLinearHead, target, "", "");
-      
+
       if (directResolution) {
-        setLpoLinearHistory([...lpoLinearHistory, { 
-          left: lpoLinearHead, right: target, resolvent: directResolution.resolvent, 
-          theta1: 'ε', theta2: 'ε' 
+        setLpoLinearHistory([...lpoLinearHistory, {
+          left: lpoLinearHead, right: target, resolvent: directResolution.resolvent,
+          theta1: 'ε', theta2: 'ε'
         }]);
         setLpoLinearHead(directResolution.resolvent);
         setLpoLinearTarget(null);
-        
+
         if (directResolution.resolvent === '□') {
-          setLpoFeedback("✓ ¡Cláusula Vacía alcanzada directamente! Conjunto Refutado.");
+          setLpoFeedback(t('emptyClauseDirect'));
         } else {
-          setLpoFeedback(`✓ Resolución directa (sin variables) por ${directResolution.resolvedLiteral}.`);
+          setLpoFeedback(t('directResolution', { lit: directResolution.resolvedLiteral }));
         }
       } else {
-        setLpoLinearTarget(target); 
-        setLpoFeedback("Cláusula seleccionada. Introduce la sustitución (Unificador MGU) y resuelve.");
+        setLpoLinearTarget(target);
+        setLpoFeedback(t('clauseSelected'));
       }
     }
   };
@@ -525,19 +527,19 @@ export default function MainMenu() {
     const result = resolveLPO(lpoLinearHead!, lpoLinearTarget!, lpoSubstitution1, lpoSubstitution2);
 
     if (result) {
-      setLpoLinearHistory([...lpoLinearHistory, { 
-        left: lpoLinearHead!, right: lpoLinearTarget!, resolvent: result.resolvent, 
-        theta1: lpoSubstitution1 || 'ε', theta2: lpoSubstitution2 || 'ε' 
+      setLpoLinearHistory([...lpoLinearHistory, {
+        left: lpoLinearHead!, right: lpoLinearTarget!, resolvent: result.resolvent,
+        theta1: lpoSubstitution1 || 'ε', theta2: lpoSubstitution2 || 'ε'
       }]);
       setLpoLinearHead(result.resolvent);
       setLpoLinearTarget(null); setLpoSubstitution1(''); setLpoSubstitution2('');
       if (result.resolvent === '□') {
-        setLpoFeedback("✓ ¡Cláusula Vacía alcanzada! Conjunto Refutado con éxito.");
+        setLpoFeedback(t('emptyClauseUnification'));
       } else {
-        setLpoFeedback(`✓ Unificación exitosa por el literal ${result.resolvedLiteral}.`);
+        setLpoFeedback(t('unificationSuccess', { lit: result.resolvedLiteral }));
       }
     } else {
-      setLpoFeedback("✗ No se pueden unificar o no hay literales complementarios tras la sustitución.");
+      setLpoFeedback(t('cannotUnify'));
     }
   };
 
@@ -556,22 +558,29 @@ export default function MainMenu() {
 
   return (
     <div className="min-h-screen w-full flex flex-col p-8 box-border select-none" style={{ backgroundColor: LOGIC_THEME.bg, color: LOGIC_THEME.text }}>
-      <header className="mb-6 flex flex-col items-center">
+      <header className="mb-6 flex flex-col items-center relative">
+        <button
+          onClick={() => setLanguage(language === 'es' ? 'en' : 'es')}
+          className="absolute top-0 right-0 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-600 font-bold text-sm transition-all"
+          style={{ fontFamily: "'Silkscreen', sans-serif" }}
+        >
+          {language === 'es' ? 'EN' : 'ES'}
+        </button>
         <h1 className="text-4xl md:text-5xl mb-2 tracking-tighter" style={{ fontFamily: "'DotGothic16', sans-serif", color: LOGIC_THEME.accent }}>
-          LOGIC LAB <span className="text-2xl opacity-60 ml-2 text-slate-400" style={{ fontFamily: "'Silkscreen', sans-serif" }}>by Dr. Plasmadrid</span>
+          {t('title')} <span className="text-2xl opacity-60 ml-2 text-slate-400" style={{ fontFamily: "'Silkscreen', sans-serif" }}>{t('subtitle')}</span>
         </h1>
         <div className="bg-slate-900/50 p-1 rounded-lg border border-slate-700/50 inline-flex mt-4">
-          <button onClick={() => handleModeChange('PROPOSICIONAL')} className={`px-6 py-2 rounded-md font-bold text-sm tracking-widest uppercase transition-all ${logicMode === 'PROPOSICIONAL' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`} style={{ fontFamily: "'Silkscreen', sans-serif" }}>Proposicional</button>
-          <button onClick={() => handleModeChange('LPO')} className={`px-6 py-2 rounded-md font-bold text-sm tracking-widest uppercase transition-all ${logicMode === 'LPO' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`} style={{ fontFamily: "'Silkscreen', sans-serif" }}>Primer Orden (LPO)</button>
+          <button onClick={() => handleModeChange('PROPOSICIONAL')} className={`px-6 py-2 rounded-md font-bold text-sm tracking-widest uppercase transition-all ${logicMode === 'PROPOSICIONAL' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`} style={{ fontFamily: "'Silkscreen', sans-serif" }}>{t('propositional')}</button>
+          <button onClick={() => handleModeChange('LPO')} className={`px-6 py-2 rounded-md font-bold text-sm tracking-widest uppercase transition-all ${logicMode === 'LPO' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`} style={{ fontFamily: "'Silkscreen', sans-serif" }}>{t('firstOrder')}</button>
         </div>
       </header>
 
       <main className="flex-1 flex flex-col gap-6 max-w-5xl mx-auto w-full">
         <div className="relative group mt-4">
           <div className="absolute -top-3 left-4 flex gap-2 items-center z-10">
-            <span className="bg-slate-800 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-slate-400 border border-slate-700 rounded shadow-sm">Live Preview</span>
+            <span className="bg-slate-800 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-slate-400 border border-slate-700 rounded shadow-sm">{t('livePreview')}</span>
             <button onClick={generateRandomSigma} className="bg-indigo-900/60 hover:bg-indigo-600 text-indigo-300 hover:text-white px-3 py-0.5 text-[10px] font-bold uppercase tracking-widest border border-indigo-700/50 rounded transition-all shadow-sm flex items-center gap-1">
-              Generar Σ Aleatorio
+              {t('generateRandom')}
             </button>
           </div>
           <div className="w-full min-h-[80px] p-6 rounded-lg border border-slate-700 bg-slate-900/40 text-2xl font-mono flex flex-wrap items-center shadow-inner gap-1">
@@ -583,15 +592,15 @@ export default function MainMenu() {
           {formulas.map((f, i) => (
             <div key={`form-${i}`} className="flex items-center gap-3">
               <span className="font-mono font-bold text-slate-400 w-8 text-right text-xl">α{i + 1}:</span>
-              <input type="text" value={f} onFocus={() => setActiveInput({ section: 'formula', index: i })} onChange={(e) => { const n = [...formulas]; n[i] = applyShortcuts(e.target.value); setFormulas(n); resetPractice(); }} spellCheck="false" autoComplete="off" placeholder={`Premisa ${i + 1}`} className="flex-1 p-3 bg-black/30 border-b-2 border-slate-700 focus:border-indigo-500 outline-none transition-all text-xl font-mono text-white rounded-t" />
+              <input type="text" value={f} onFocus={() => setActiveInput({ section: 'formula', index: i })} onChange={(e) => { const n = [...formulas]; n[i] = applyShortcuts(e.target.value); setFormulas(n); resetPractice(); }} spellCheck="false" autoComplete="off" placeholder={`${t('premise')} ${i + 1}`} className="flex-1 p-3 bg-black/30 border-b-2 border-slate-700 focus:border-indigo-500 outline-none transition-all text-xl font-mono text-white rounded-t" />
               {formulas.length > 1 && <button onClick={() => { setFormulas(formulas.filter((_, idx) => idx !== i)); setAsts(asts.filter((_, idx) => idx !== i)); resetPractice(); }} className="px-4 py-2 bg-red-900/30 text-red-400 rounded hover:bg-red-900/50 font-bold text-xl transition-colors">×</button>}
             </div>
           ))}
-          <button onClick={() => { setFormulas([...formulas, '']); resetPractice(); }} className="self-start ml-14 text-xs font-bold uppercase tracking-widest text-indigo-400 hover:text-indigo-300 px-3 py-1 bg-indigo-900/30 rounded border border-indigo-900/50 transition-colors">+ Añadir cláusula α{formulas.length + 1}</button>
+          <button onClick={() => { setFormulas([...formulas, '']); resetPractice(); }} className="self-start ml-14 text-xs font-bold uppercase tracking-widest text-indigo-400 hover:text-indigo-300 px-3 py-1 bg-indigo-900/30 rounded border border-indigo-900/50 transition-colors">{t('addClause')} {formulas.length + 1}</button>
         </div>
 
         <div className="flex flex-wrap gap-2 p-3 bg-slate-900/20 border border-slate-800 rounded-lg items-center">
-          <span className="text-xs uppercase tracking-wider font-bold opacity-40 mr-2" style={{ fontFamily: "'Silkscreen', sans-serif" }}>Símbolos:</span>
+          <span className="text-xs uppercase tracking-wider font-bold opacity-40 mr-2" style={{ fontFamily: "'Silkscreen', sans-serif" }}>{t('symbols')}:</span>
           {['⇒', '⇔', '¬', '∧', '∨', '∀', '∃'].map((sym) => {
             const dis = logicMode === 'PROPOSICIONAL' && (sym === '∀' || sym === '∃'); return <button key={sym} onClick={() => insertSymbol(sym)} disabled={dis} className={`px-4 py-2 border rounded text-lg font-mono transition-all ${dis ? 'bg-slate-900/40 border-slate-800 text-slate-700 cursor-not-allowed' : 'bg-slate-800/60 border-slate-700 text-white hover:bg-slate-700 active:scale-95'}`}>{sym}</button>;
           })}
@@ -599,16 +608,16 @@ export default function MainMenu() {
 
         {logicMode === 'LPO' && Object.keys(dictionary).length > 0 && (
           <section className="p-4 bg-slate-900/30 border border-slate-800/80 rounded-lg">
-            <h3 className="text-xs uppercase tracking-widest font-bold opacity-50 mb-3" style={{ fontFamily: "'Silkscreen', sans-serif" }}>Configuración Semántica de Letras</h3>
+            <h3 className="text-xs uppercase tracking-widest font-bold opacity-50 mb-3" style={{ fontFamily: "'Silkscreen', sans-serif" }}>{t('semanticConfig')}</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {Object.entries(dictionary).map(([letter, type]) => (
                 <div key={letter} className="flex items-center justify-between bg-black/20 p-2 rounded border border-slate-800 font-mono text-sm">
                   <span className="text-lg font-bold px-2" style={{ color: LOGIC_THEME[type === 'FUNCTION' ? 'function' : type === 'PREDICATE' ? 'predicate' : type === 'CONSTANT' ? 'constant' : 'variable'] }}>{letter}</span>
                   <select value={type} onChange={(e) => setDictionary(prev => ({...prev, [letter]: e.target.value as SymbolType}))} className="bg-slate-900 text-xs text-slate-300 border border-slate-700 rounded px-2 py-1 outline-none">
-                    <option value="VARIABLE">Variable</option>
-                    <option value="CONSTANT">Constante</option>
-                    <option value="FUNCTION">Función</option>
-                    <option value="PREDICATE">Predicado</option>
+                    <option value="VARIABLE">{t('variable')}</option>
+                    <option value="CONSTANT">{t('constant')}</option>
+                    <option value="FUNCTION">{t('function')}</option>
+                    <option value="PREDICATE">{t('predicate')}</option>
                   </select>
                 </div>
               ))}
@@ -619,10 +628,10 @@ export default function MainMenu() {
         {logicMode === 'PROPOSICIONAL' && asts.some(a => a !== null) && (
           <section className="p-5 bg-slate-800/40 border border-indigo-500/30 rounded-lg">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-sm uppercase tracking-widest font-bold text-indigo-300" style={{ fontFamily: "'Silkscreen', sans-serif" }}>Construir FNC de Σ</h3>
+              <h3 className="text-sm uppercase tracking-widest font-bold text-indigo-300" style={{ fontFamily: "'Silkscreen', sans-serif" }}>{t('buildCNF')}</h3>
               <div className="flex gap-2">
-                <button onClick={showFncSolution} className="text-xs bg-indigo-900/50 text-indigo-300 px-3 py-1 rounded hover:bg-indigo-800 transition-colors border border-indigo-700/50">Mostrar Solución</button>
-                <button onClick={resetPractice} className="text-xs bg-slate-700/50 text-slate-300 px-3 py-1 rounded hover:bg-slate-600 transition-colors border border-slate-600/50">Reiniciar</button>
+                <button onClick={showFncSolution} className="text-xs bg-indigo-900/50 text-indigo-300 px-3 py-1 rounded hover:bg-indigo-800 transition-colors border border-indigo-700/50">{t('showSolution')}</button>
+                <button onClick={resetPractice} className="text-xs bg-slate-700/50 text-slate-300 px-3 py-1 rounded hover:bg-slate-600 transition-colors border border-slate-600/50">{t('restart')}</button>
               </div>
             </div>
 
@@ -636,7 +645,7 @@ export default function MainMenu() {
 
             {practiceFeedback !== 'CORRECT_ALL' && (
               <>
-                <p className="text-sm opacity-70 mb-4 font-sans">Transformando <span className="font-bold text-indigo-300">α{practiceActiveFormula + 1}</span>. Separa las conjunciones (∧) en cajas.</p>
+                <p className="text-sm opacity-70 mb-4 font-sans">{t('transforming')} <span className="font-bold text-indigo-300">α{practiceActiveFormula + 1}</span>. {t('separateConjunctions')}</p>
                 <div className="flex flex-col gap-3">
                   {practiceSubclauses.map((sub, idx) => (
                     <div key={`prac-${idx}`} className="flex items-center gap-3">
@@ -646,31 +655,31 @@ export default function MainMenu() {
                     </div>
                   ))}
                   <div className="flex gap-4 mt-2 ml-14">
-                     <button onClick={() => setPracticeSubclauses([...practiceSubclauses, ''])} className="px-4 py-2 bg-slate-800 text-slate-300 text-sm font-bold rounded hover:bg-slate-700">+ Separar en ∧</button>
-                     <button onClick={checkSubclauses} className="bg-emerald-600 text-white px-8 py-2 rounded font-bold hover:bg-emerald-500">Validar α{practiceActiveFormula + 1}</button>
+                     <button onClick={() => setPracticeSubclauses([...practiceSubclauses, ''])} className="px-4 py-2 bg-slate-800 text-slate-300 text-sm font-bold rounded hover:bg-slate-700">{t('separateAnd')}</button>
+                     <button onClick={checkSubclauses} className="bg-emerald-600 text-white px-8 py-2 rounded font-bold hover:bg-emerald-500">{t('validate')} α{practiceActiveFormula + 1}</button>
                   </div>
                 </div>
-                {practiceFeedback === 'INCORRECT' && <div className="mt-4 text-red-400 text-sm font-bold">✗ Error. Revisa que todas las cajas sean correctas y estén rellenas.</div>}
-                {practiceFeedback === 'INCORRECT_FORMAT' && <div className="mt-4 text-orange-400 text-sm font-bold">⚠ Equivalente, pero asegúrate de que no haya paréntesis de más ni conjunciones ocultas.</div>}
-                {practiceFeedback === 'SYNTAX_ERROR' && <div className="mt-4 text-red-400 text-sm font-bold">✗ Error de sintaxis.</div>}
-                {practiceFeedback === 'SHOW_SOLUTION' && <div className="mt-4 text-indigo-400 text-sm font-bold flex items-center gap-2">💡 Solución matemática autocompletada. Pulsa Validar.</div>}
+                {practiceFeedback === 'INCORRECT' && <div className="mt-4 text-red-400 text-sm font-bold">{t('errorCheck')}</div>}
+                {practiceFeedback === 'INCORRECT_FORMAT' && <div className="mt-4 text-orange-400 text-sm font-bold">{t('errorFormat')}</div>}
+                {practiceFeedback === 'SYNTAX_ERROR' && <div className="mt-4 text-red-400 text-sm font-bold">{t('syntaxError')}</div>}
+                {practiceFeedback === 'SHOW_SOLUTION' && <div className="mt-4 text-indigo-400 text-sm font-bold flex items-center gap-2">{t('solutionAutocompleted')}</div>}
               </>
             )}
 
             {practiceFeedback === 'CORRECT_ALL' && hornAnswer && (
               <div className="mt-4 p-6 bg-indigo-900/20 border-2 border-indigo-500/50 rounded-xl">
-                <h3 className="text-xl font-bold text-indigo-300 mb-4" style={{ fontFamily: "'DotGothic16', sans-serif" }}>Pregunta Bonus</h3>
-                <p className="text-slate-300 mb-4">¿Es este conjunto Σ un <strong>Conjunto de Horn</strong>?</p>
+                <h3 className="text-xl font-bold text-indigo-300 mb-4" style={{ fontFamily: "'DotGothic16', sans-serif" }}>{t('bonusQuestion')}</h3>
+                <p className="text-slate-300 mb-4" dangerouslySetInnerHTML={{ __html: t('hornQuestion') }}></p>
                 <div className="flex gap-3 mb-4">
-                  <button onClick={() => setHornFeedback(hornAnswer.isHorn ? 'CORRECT' : 'INCORRECT')} className="px-6 py-2 bg-slate-800 hover:bg-indigo-600 text-white font-bold rounded">Sí</button>
-                  <button onClick={() => setHornFeedback(!hornAnswer.isHorn ? 'CORRECT' : 'INCORRECT')} className="px-6 py-2 bg-slate-800 hover:bg-indigo-600 text-white font-bold rounded">No</button>
-                  <button onClick={() => setHornFeedback('SHOW')} className="px-6 py-2 bg-transparent border border-indigo-600 hover:border-indigo-400 text-indigo-400 font-bold rounded">Mostrar Respuesta</button>
+                  <button onClick={() => setHornFeedback(hornAnswer.isHorn ? 'CORRECT' : 'INCORRECT')} className="px-6 py-2 bg-slate-800 hover:bg-indigo-600 text-white font-bold rounded">{t('yes')}</button>
+                  <button onClick={() => setHornFeedback(!hornAnswer.isHorn ? 'CORRECT' : 'INCORRECT')} className="px-6 py-2 bg-slate-800 hover:bg-indigo-600 text-white font-bold rounded">{t('no')}</button>
+                  <button onClick={() => setHornFeedback('SHOW')} className="px-6 py-2 bg-transparent border border-indigo-600 hover:border-indigo-400 text-indigo-400 font-bold rounded">{t('showAnswer')}</button>
                 </div>
                 {hornFeedback !== 'IDLE' && (
                   <div className={`p-4 rounded-lg font-bold text-sm ${hornFeedback === 'CORRECT' ? 'bg-emerald-900/40 text-emerald-400 border border-emerald-500/30' : hornFeedback === 'INCORRECT' ? 'bg-red-900/40 text-red-400 border border-red-500/30' : 'bg-indigo-900/30 text-indigo-300 border border-indigo-500/30'}`}>
-                    {hornFeedback === 'CORRECT' && <span className="block mb-1 text-lg">✓ ¡Correcto!</span>}
-                    {hornFeedback === 'INCORRECT' && <span className="block mb-1 text-lg">✗ Fallaste.</span>}
-                    {hornFeedback === 'SHOW' && <span className="block mb-1 text-lg">💡 Solución:</span>}
+                    {hornFeedback === 'CORRECT' && <span className="block mb-1 text-lg">{t('correct')}</span>}
+                    {hornFeedback === 'INCORRECT' && <span className="block mb-1 text-lg">{t('incorrect')}</span>}
+                    {hornFeedback === 'SHOW' && <span className="block mb-1 text-lg">{t('solution')}</span>}
                     <span className="font-mono">{hornAnswer.explanation}</span>
                   </div>
                 )}
@@ -679,19 +688,19 @@ export default function MainMenu() {
 
             {practiceFeedback === 'CORRECT_ALL' && hornFeedback !== 'IDLE' && (
               <div className="mt-8 pt-6 border-t border-slate-700/50">
-                <h3 className="text-xl font-bold text-emerald-300 mb-4 tracking-widest" style={{ fontFamily: "'DotGothic16', sans-serif" }}>SISTEMA DE RESOLUCIÓN</h3>
+                <h3 className="text-xl font-bold text-emerald-300 mb-4 tracking-widest" style={{ fontFamily: "'DotGothic16', sans-serif" }}>{t('resolutionSystem')}</h3>
                 <div className="flex gap-4">
-                  <button onClick={executeDPLL} className={`flex-1 py-4 border-2 rounded-xl font-bold uppercase tracking-widest ${activeAlgorithm === 'DPLL' ? 'bg-purple-600 border-purple-400 text-white' : 'bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700'}`}>Davis-Putnam (DPLL)</button>
-                  <button onClick={executeLinear} className={`flex-1 py-4 border-2 rounded-xl font-bold uppercase tracking-widest ${activeAlgorithm === 'LINEAR' ? 'bg-orange-600 border-orange-400 text-white' : 'bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700'}`}>Resolución Lineal-Input</button>
+                  <button onClick={executeDPLL} className={`flex-1 py-4 border-2 rounded-xl font-bold uppercase tracking-widest ${activeAlgorithm === 'DPLL' ? 'bg-purple-600 border-purple-400 text-white' : 'bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700'}`}>{t('davisPutnam')}</button>
+                  <button onClick={executeLinear} className={`flex-1 py-4 border-2 rounded-xl font-bold uppercase tracking-widest ${activeAlgorithm === 'LINEAR' ? 'bg-orange-600 border-orange-400 text-white' : 'bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700'}`}>{t('linearInput')}</button>
                 </div>
 
                 {activeAlgorithm === 'DPLL' && dpllTrace && (
                   <div className="mt-6 p-6 bg-black/40 border border-purple-500/30 rounded-lg font-mono">
                      <div className="flex justify-between items-center mb-4 border-b border-purple-900/50 pb-2">
-                      <h4 className="text-purple-400 font-bold uppercase tracking-widest text-sm">Laboratorio DPLL</h4>
+                      <h4 className="text-purple-400 font-bold uppercase tracking-widest text-sm">{t('dpllLab')}</h4>
                       <div className="flex gap-2">
-                         <button onClick={resetDPLLGame} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded border border-slate-600">Reiniciar</button>
-                         <button onClick={() => setDpllGameMode('SHOW_ALL')} className="text-xs bg-purple-900/50 hover:bg-purple-800 text-purple-300 px-3 py-1 rounded border border-purple-700">Mostrar Respuesta</button>
+                         <button onClick={resetDPLLGame} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded border border-slate-600">{t('restart')}</button>
+                         <button onClick={() => setDpllGameMode('SHOW_ALL')} className="text-xs bg-purple-900/50 hover:bg-purple-800 text-purple-300 px-3 py-1 rounded border border-purple-700">{t('showAnswerBtn')}</button>
                       </div>
                     </div>
 
@@ -709,19 +718,19 @@ export default function MainMenu() {
 
                     {dpllGameMode === 'INTERACTIVE' && dpllStepIndex < dpllTrace.length - 1 && (
                        <div className="p-5 bg-purple-900/20 border-2 border-purple-500/50 rounded-xl shadow-lg">
-                         <h5 className="text-purple-300 font-bold mb-3 uppercase tracking-widest text-xs">¿Qué paso lógico se debe aplicar ahora?</h5>
+                         <h5 className="text-purple-300 font-bold mb-3 uppercase tracking-widest text-xs">{t('whatStep')}</h5>
                          {!dpllPendingLiteralRule ? (
                            <div className="flex flex-wrap gap-2">
-                              <button onClick={() => handleGuessRule('UNIT_PROPAGATION')} className="px-3 py-2 bg-slate-800 hover:bg-indigo-600 rounded text-sm font-bold transition-colors">Propagación Unitaria</button>
-                              <button onClick={() => handleGuessRule('PURE_LITERAL')} className="px-3 py-2 bg-slate-800 hover:bg-indigo-600 rounded text-sm font-bold transition-colors">Literal Puro</button>
-                              <button onClick={() => handleGuessRule('SPLIT')} className="px-3 py-2 bg-slate-800 hover:bg-indigo-600 rounded text-sm font-bold transition-colors">Bifurcación (Split)</button>
-                              <button onClick={() => handleGuessRule('BACKTRACK')} className="px-3 py-2 bg-slate-800 hover:bg-orange-600 rounded text-sm font-bold transition-colors">Backtrack (Cambiar Rama)</button>
-                              <button onClick={() => handleGuessRule('FAIL')} className="px-3 py-2 bg-slate-800 hover:bg-red-600 rounded text-sm font-bold transition-colors">Cláusula Vacía (Insat)</button>
-                              <button onClick={() => handleGuessRule('SUCCESS')} className="px-3 py-2 bg-slate-800 hover:bg-emerald-600 rounded text-sm font-bold transition-colors">Conjunto Vacío (Sat)</button>
+                              <button onClick={() => handleGuessRule('UNIT_PROPAGATION')} className="px-3 py-2 bg-slate-800 hover:bg-indigo-600 rounded text-sm font-bold transition-colors">{t('unitPropagation')}</button>
+                              <button onClick={() => handleGuessRule('PURE_LITERAL')} className="px-3 py-2 bg-slate-800 hover:bg-indigo-600 rounded text-sm font-bold transition-colors">{t('pureLiteral')}</button>
+                              <button onClick={() => handleGuessRule('SPLIT')} className="px-3 py-2 bg-slate-800 hover:bg-indigo-600 rounded text-sm font-bold transition-colors">{t('split')}</button>
+                              <button onClick={() => handleGuessRule('BACKTRACK')} className="px-3 py-2 bg-slate-800 hover:bg-orange-600 rounded text-sm font-bold transition-colors">{t('backtrack')}</button>
+                              <button onClick={() => handleGuessRule('FAIL')} className="px-3 py-2 bg-slate-800 hover:bg-red-600 rounded text-sm font-bold transition-colors">{t('emptyClause')}</button>
+                              <button onClick={() => handleGuessRule('SUCCESS')} className="px-3 py-2 bg-slate-800 hover:bg-emerald-600 rounded text-sm font-bold transition-colors">{t('emptySet')}</button>
                            </div>
                          ) : (
                            <div>
-                              <p className="text-sm text-slate-300 mb-2">Has elegido la regla correcta. ¿Sobre qué literal la aplicamos?</p>
+                              <p className="text-sm text-slate-300 mb-2">{t('chooseLiteral')}</p>
                               <div className="flex flex-wrap gap-2">
                                  {getUniqueLiterals(dpllTrace[dpllStepIndex].clauses).map((lit, idx) => (
                                     <button key={idx} onClick={() => handleGuessLiteral(lit.name, lit.isPositive)} className="px-4 py-2 font-mono text-lg font-bold bg-indigo-900/50 hover:bg-indigo-500 border border-indigo-400 rounded transition-colors">
@@ -729,7 +738,7 @@ export default function MainMenu() {
                                     </button>
                                  ))}
                               </div>
-                              <button onClick={() => setDpllPendingLiteralRule(null)} className="mt-4 text-xs text-slate-400 hover:text-white underline">Me he equivocado, quiero cambiar de regla</button>
+                              <button onClick={() => setDpllPendingLiteralRule(null)} className="mt-4 text-xs text-slate-400 hover:text-white underline">{t('changeRule')}</button>
                            </div>
                          )}
                          {dpllMinigameFeedback && <div className={`mt-4 text-sm font-bold ${dpllMinigameFeedback.includes('✗') ? 'text-red-400' : 'text-emerald-400'}`}>{dpllMinigameFeedback}</div>}
@@ -741,12 +750,12 @@ export default function MainMenu() {
                 {activeAlgorithm === 'LINEAR' && (
                   <div className="mt-6 p-6 bg-black/40 border border-orange-500/30 rounded-lg font-mono">
                     <div className="flex justify-between items-center mb-6 border-b border-orange-900/50 pb-2">
-                      <h4 className="text-orange-400 font-bold uppercase tracking-widest text-sm">Laboratorio Lineal-Input</h4>
-                      <button onClick={resetLinearGame} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded border border-slate-600">Reiniciar Árbol</button>
+                      <h4 className="text-orange-400 font-bold uppercase tracking-widest text-sm">{t('linearLab')}</h4>
+                      <button onClick={resetLinearGame} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded border border-slate-600">{t('restartTree')}</button>
                     </div>
 
                     <div className="mb-6 p-4 bg-orange-900/10 border border-orange-800/30 rounded">
-                      <h5 className="text-xs text-orange-300/70 uppercase tracking-widest mb-3">Conjunto Input (Original)</h5>
+                      <h5 className="text-xs text-orange-300/70 uppercase tracking-widest mb-3">{t('inputSet')}</h5>
                       <div className="flex flex-wrap gap-2">
                         {linearBaseClauses.map((c, idx) => (
                           <button key={idx} onClick={() => handleLinearSelect(c)} disabled={linearStatus === 'SUCCESS'}
@@ -788,7 +797,7 @@ export default function MainMenu() {
                          </div>
                       )}
                     </div>
-                    {!linearHead && <div className="text-center p-8 border border-dashed border-slate-700 rounded-lg text-slate-500 font-mono text-sm">Selecciona una cláusula del conjunto Input arriba para iniciar la refutación.</div>}
+                    {!linearHead && <div className="text-center p-8 border border-dashed border-slate-700 rounded-lg text-slate-500 font-mono text-sm">{t('selectClause')}</div>}
                   </div>
                 )}
               </div>
@@ -799,11 +808,11 @@ export default function MainMenu() {
         {logicMode === 'LPO' && asts.some(a => a !== null) && (
           <section className="p-5 bg-emerald-900/10 border border-emerald-500/30 rounded-lg">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-sm uppercase tracking-widest font-bold text-emerald-400" style={{ fontFamily: "'Silkscreen', sans-serif" }}>Flujo LPO: Skolemización y Resolución</h3>
+              <h3 className="text-sm uppercase tracking-widest font-bold text-emerald-400" style={{ fontFamily: "'Silkscreen', sans-serif" }}>{t('lpoFlow')}</h3>
               {lpoPhase !== 'IDLE' ? (
-                <button onClick={resetPractice} className="text-xs bg-slate-700/50 text-slate-300 px-3 py-1 rounded hover:bg-slate-600 transition-colors">Reiniciar</button>
+                <button onClick={resetPractice} className="text-xs bg-slate-700/50 text-slate-300 px-3 py-1 rounded hover:bg-slate-600 transition-colors">{t('restart')}</button>
               ) : (
-                <button onClick={startLpoPractice} className="bg-emerald-600 text-white font-bold uppercase tracking-widest px-6 py-2 rounded shadow hover:bg-emerald-500 transition-all">Iniciar Práctica LPO</button>
+                <button onClick={startLpoPractice} className="bg-emerald-600 text-white font-bold uppercase tracking-widest px-6 py-2 rounded shadow hover:bg-emerald-500 transition-all">{t('startLpoPractice')}</button>
               )}
             </div>
 
@@ -841,17 +850,17 @@ export default function MainMenu() {
               <div className="animate-fade-in">
                 <div className="flex justify-between items-center mb-4">
                   <div className="flex items-center gap-2">
-                    <span className="bg-emerald-800 text-white px-2 py-1 rounded text-xs font-bold">FASE 1</span>
-                    <span className="text-slate-300 font-bold uppercase tracking-widest text-sm">Formas de Skolem</span>
+                    <span className="bg-emerald-800 text-white px-2 py-1 rounded text-xs font-bold">{t('phase1')}</span>
+                    <span className="text-slate-300 font-bold uppercase tracking-widest text-sm">{t('skolemForms')}</span>
                   </div>
-                  <button onClick={showLpoSkolemSolution} className="text-xs bg-emerald-900/50 text-emerald-300 px-3 py-1 rounded hover:bg-emerald-800 transition-colors border border-emerald-700/50">Mostrar Solución</button>
+                  <button onClick={showLpoSkolemSolution} className="text-xs bg-emerald-900/50 text-emerald-300 px-3 py-1 rounded hover:bg-emerald-800 transition-colors border border-emerald-700/50">{t('showSolution')}</button>
                 </div>
-                <p className="text-sm text-slate-400 mb-4">Introduce la Fórmula de Skolem equivalente (sin existenciales ∃) para: <span className="font-mono text-emerald-300 bg-black/50 px-2 py-1 rounded">α{lpoActiveFormula + 1}: {formulas[lpoActiveFormula]}</span></p>
-                
+                <p className="text-sm text-slate-400 mb-4">{t('skolemPrompt')} <span className="font-mono text-emerald-300 bg-black/50 px-2 py-1 rounded">α{lpoActiveFormula + 1}: {formulas[lpoActiveFormula]}</span></p>
+
                 <div className="flex gap-3">
                   <span className="font-mono font-bold text-emerald-400 w-12 text-right mt-3">Sk{lpoActiveFormula + 1}:</span>
                   <input type="text" value={lpoInputs[0]} onFocus={() => setActiveInput({ section: 'lpo', index: 0 })} onChange={(e) => setLpoInputs([applyShortcuts(e.target.value)])} className="flex-1 p-3 bg-black/50 border-2 border-slate-600 focus:border-emerald-400 outline-none transition-all text-lg font-mono rounded text-white" />
-                  <button onClick={checkLpoSkolem} className="bg-emerald-600 text-white px-6 py-2 rounded font-bold hover:bg-emerald-500">Validar Skolem</button>
+                  <button onClick={checkLpoSkolem} className="bg-emerald-600 text-white px-6 py-2 rounded font-bold hover:bg-emerald-500">{t('validateSkolem')}</button>
                 </div>
                 {lpoFeedback && <div className={`mt-3 text-sm font-bold flex items-center gap-2 ${lpoFeedback.includes('✗') ? 'text-red-400' : 'text-emerald-400'}`}>{lpoFeedback}</div>}
               </div>
@@ -861,12 +870,12 @@ export default function MainMenu() {
               <div className="animate-fade-in">
                 <div className="flex justify-between items-center mb-4">
                   <div className="flex items-center gap-2">
-                    <span className="bg-teal-700 text-white px-2 py-1 rounded text-xs font-bold">FASE 2</span>
-                    <span className="text-slate-300 font-bold uppercase tracking-widest text-sm">Clausulación LPO</span>
+                    <span className="bg-teal-700 text-white px-2 py-1 rounded text-xs font-bold">{t('phase2')}</span>
+                    <span className="text-slate-300 font-bold uppercase tracking-widest text-sm">{t('clausulation')}</span>
                   </div>
-                  <button onClick={showLpoClausalSolution} className="text-xs bg-teal-900/50 text-teal-300 px-3 py-1 rounded hover:bg-teal-800 transition-colors border border-teal-700/50">Mostrar Solución</button>
+                  <button onClick={showLpoClausalSolution} className="text-xs bg-teal-900/50 text-teal-300 px-3 py-1 rounded hover:bg-teal-800 transition-colors border border-teal-700/50">{t('showSolution')}</button>
                 </div>
-                <p className="text-sm text-slate-400 mb-4">Elimina los cuantificadores universales (∀) y separa por conjunciones (∧) la fórmula: <span className="font-mono text-teal-300 bg-black/50 px-2 py-1 rounded">Sk{lpoActiveFormula + 1}: {lpoSkolemFormulas[lpoActiveFormula]}</span></p>
+                <p className="text-sm text-slate-400 mb-4">{t('clausalPrompt')} <span className="font-mono text-teal-300 bg-black/50 px-2 py-1 rounded">Sk{lpoActiveFormula + 1}: {lpoSkolemFormulas[lpoActiveFormula]}</span></p>
 
                 <div className="flex flex-col gap-3">
                   {lpoInputs.map((sub, idx) => (
@@ -877,8 +886,8 @@ export default function MainMenu() {
                     </div>
                   ))}
                   <div className="flex gap-4 mt-2 ml-14">
-                     <button onClick={() => setLpoInputs([...lpoInputs, ''])} className="px-4 py-2 bg-slate-800 text-slate-300 text-sm font-bold rounded hover:bg-slate-700">+ Separar en ∧</button>
-                     <button onClick={checkLpoClausal} className="bg-teal-600 text-white px-8 py-2 rounded font-bold hover:bg-teal-500">Validar Cláusulas</button>
+                     <button onClick={() => setLpoInputs([...lpoInputs, ''])} className="px-4 py-2 bg-slate-800 text-slate-300 text-sm font-bold rounded hover:bg-slate-700">{t('separateAnd')}</button>
+                     <button onClick={checkLpoClausal} className="bg-teal-600 text-white px-8 py-2 rounded font-bold hover:bg-teal-500">{t('validateClauses')}</button>
                   </div>
                 </div>
                 {lpoFeedback && <div className={`mt-3 text-sm font-bold ${lpoFeedback.includes('✗') ? 'text-red-400' : 'text-teal-400'}`}>{lpoFeedback}</div>}
@@ -889,13 +898,13 @@ export default function MainMenu() {
               <div className="animate-fade-in mt-4 p-6 bg-black/40 border border-blue-500/30 rounded-lg font-mono">
                 <div className="flex justify-between items-center mb-6 border-b border-blue-900/50 pb-2">
                   <h4 className="text-blue-400 font-bold uppercase tracking-widest text-sm flex items-center gap-2">
-                    <span className="bg-blue-800 text-white px-2 py-0.5 rounded text-xs">FASE 3</span> Resolución Lineal LPO
+                    <span className="bg-blue-800 text-white px-2 py-0.5 rounded text-xs">{t('phase3')}</span> {t('linearResolution')}
                   </h4>
-                  <button onClick={() => { setLpoLinearHead(null); setLpoLinearTarget(null); setLpoSubstitution1(''); setLpoSubstitution2(''); setLpoLinearHistory([]); setLpoFeedback(null); }} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded border border-slate-600">Reiniciar Árbol</button>
+                  <button onClick={() => { setLpoLinearHead(null); setLpoLinearTarget(null); setLpoSubstitution1(''); setLpoSubstitution2(''); setLpoLinearHistory([]); setLpoFeedback(null); }} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded border border-slate-600">{t('restartTree')}</button>
                 </div>
 
                 <div className="mb-6 p-4 bg-blue-900/10 border border-blue-800/30 rounded">
-                  <h5 className="text-xs text-blue-300/70 uppercase tracking-widest mb-3">Conjunto Input LPO</h5>
+                  <h5 className="text-xs text-blue-300/70 uppercase tracking-widest mb-3">{t('inputSetLpo')}</h5>
                   <div className="flex flex-wrap gap-2">
                     {lpoClausalFormulas.map((c, idx) => (
                       <button key={idx} onClick={() => handleLpoLinearSelect(c)}
@@ -908,12 +917,12 @@ export default function MainMenu() {
 
                 {lpoLinearHead && lpoLinearTarget && (
                   <div className="mb-8 p-5 bg-blue-900/20 border-2 border-blue-500/50 rounded-xl shadow-lg flex flex-col items-center">
-                    <h5 className="text-blue-300 font-bold mb-4 uppercase tracking-widest text-xs">Preparación y Unificación</h5>
-                    
+                    <h5 className="text-blue-300 font-bold mb-4 uppercase tracking-widest text-xs">{t('prepUnification')}</h5>
+
                     <div className="flex flex-col md:flex-row items-center justify-center gap-6 w-full">
                       <div className="flex flex-col items-center flex-1">
                         <span className="text-white bg-slate-800 px-4 py-3 rounded border border-slate-600 mb-3 text-center w-full">{lpoLinearHead}</span>
-                        <label className="text-xs text-slate-400 mb-1 font-sans">Sustitución θ₁ (Ej: x|a)</label>
+                        <label className="text-xs text-slate-400 mb-1 font-sans">{t('substitution1')}</label>
                         <input type="text" value={lpoSubstitution1} onChange={(e) => setLpoSubstitution1(e.target.value)} className="w-full p-2 bg-black/60 border border-slate-600 focus:border-blue-400 rounded text-white font-mono text-center outline-none" placeholder="Ej: x/a, y|f(b)" />
                       </div>
 
@@ -921,14 +930,14 @@ export default function MainMenu() {
 
                       <div className="flex flex-col items-center flex-1">
                         <span className="text-white bg-slate-800 px-4 py-3 rounded border border-slate-600 mb-3 text-center w-full">{lpoLinearTarget}</span>
-                        <label className="text-xs text-slate-400 mb-1 font-sans">Sustitución θ₂ (Ej: x|f(a))</label>
+                        <label className="text-xs text-slate-400 mb-1 font-sans">{t('substitution2')}</label>
                         <input type="text" value={lpoSubstitution2} onChange={(e) => setLpoSubstitution2(e.target.value)} className="w-full p-2 bg-black/60 border border-slate-600 focus:border-blue-400 rounded text-white font-mono text-center outline-none" placeholder="Ej: z->c, w=a" />
                       </div>
                     </div>
 
                     <div className="mt-6 flex flex-col items-center w-full">
-                      <button onClick={handleLpoResolve} className="px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded transition-colors text-lg">Unificar y Resolver</button>
-                      <button onClick={() => { setLpoLinearTarget(null); setLpoSubstitution1(''); setLpoSubstitution2(''); }} className="mt-3 text-xs text-slate-500 hover:text-slate-300 underline">Cancelar selección</button>
+                      <button onClick={handleLpoResolve} className="px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded transition-colors text-lg">{t('unifyResolve')}</button>
+                      <button onClick={() => { setLpoLinearTarget(null); setLpoSubstitution1(''); setLpoSubstitution2(''); }} className="mt-3 text-xs text-slate-500 hover:text-slate-300 underline">{t('cancelSelection')}</button>
                     </div>
                   </div>
                 )}
@@ -968,7 +977,7 @@ export default function MainMenu() {
 
                 {!lpoLinearHead && (
                   <div className="text-center p-8 border border-dashed border-slate-700 rounded-lg text-slate-500 font-mono text-sm">
-                    Selecciona una cláusula del conjunto Input para iniciar la refutación LPO.
+                    {t('selectClauseLpo')}
                   </div>
                 )}
               </div>
